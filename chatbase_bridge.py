@@ -47,43 +47,47 @@ def _build_payload_openai_style(agent_id: str, message: str, session_id: str | N
 # ---------- Route ----------
 @router.post("/chatbase_bridge", response_model=ChatbaseOut)
 async def chatbase_bridge(data: ChatbaseIn):
-    CHATBASE_API_KEY = _get_env("CHATBASE_API_KEY")
-    CHATBASE_AGENT_ID = _get_env("CHATBASE_AGENT_ID")
+    try:
+        CHATBASE_API_KEY = _get_env("CHATBASE_API_KEY")
+        CHATBASE_AGENT_ID = _get_env("CHATBASE_AGENT_ID")
 
-    payload = _build_payload_openai_style(
-        CHATBASE_AGENT_ID, data.message, data.session_id, data.user_id
-    )
-
-    async with httpx.AsyncClient() as client:
-        res = await client.post(
-            "https://www.chatbase.co/api/v1/chat",
-            headers=_headers(),
-            json=payload,
+        payload = _build_payload_openai_style(
+            CHATBASE_AGENT_ID, data.message, data.session_id, data.user_id
         )
 
-    if res.status_code != 200:
-        raise HTTPException(status_code=res.status_code, detail=res.text)
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            res = await client.post(
+                "https://www.chatbase.co/api/v1/chat",
+                headers=_headers(),
+                json=payload,
+            )
 
-    raw_response = res.json()
-    reply = raw_response.get("message", "No reply received.")
+        res.raise_for_status()
+        raw_response = res.json()
 
-    # --- 🔥 Try to detect reservation intent ---
-    try:
-        parsed = json.loads(reply)
-        if isinstance(parsed, dict) and parsed.get("intent") == "book_reservation":
-            data = parsed.get("data", {})
-            reservation = {
-                "reservation_id": "RES-" + datetime.now().strftime("%H%M%S"),
-                "datetime": data.get("datetime", datetime.now().strftime("%Y-%m-%dT%H:%M")),
-                "business": data.get("business_id", "DefaultBiz"),
-                "party_size": int(data.get("party_size", 2)),
-                "customer_name": data.get("name", "Guest"),
-                "customer_email": data.get("email", "guest@example.com"),
-                "status": "confirmed",
-            }
-            add_reservation(reservation)
-            reply = f"✅ Reservation created for {reservation['customer_name']} on {reservation['datetime']} for {reservation['party_size']} people."
-    except Exception:
-        pass  # Normal text replies continue as usual
+        # ✅ Ensure reply field is always available
+        reply = raw_response.get("reply") or raw_response.get("message") or "⚠️ No response from Chatbase."
 
-    return ChatbaseOut(reply=reply, raw=raw_response)
+        # --- 🔥 Try to detect reservation intent ---
+        try:
+            parsed = json.loads(reply)
+            if isinstance(parsed, dict) and parsed.get("intent") == "book_reservation":
+                data = parsed.get("data", {})
+                reservation = {
+                    "reservation_id": "RES-" + datetime.now().strftime("%H%M%S"),
+                    "datetime": data.get("datetime", datetime.now().strftime("%Y-%m-%dT%H:%M")),
+                    "business": data.get("business_id", "DefaultBiz"),
+                    "party_size": int(data.get("party_size", 2)),
+                    "customer_name": data.get("name", "Guest"),
+                    "customer_email": data.get("email", "guest@example.com"),
+                    "status": "confirmed",
+                }
+                add_reservation(reservation)
+                reply = f"✅ Reservation created for {reservation['customer_name']} on {reservation['datetime']} for {reservation['party_size']} people."
+        except Exception:
+            pass  # Normal text replies continue as usual
+
+        return ChatbaseOut(reply=reply, raw=raw_response)
+
+    except Exception as e:
+        return ChatbaseOut(reply=f"⚠️ Error: {str(e)}", raw={})
