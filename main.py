@@ -9,8 +9,11 @@ from typing import Optional
 from datetime import datetime
 from dotenv import load_dotenv
 
+# --- Database integration ---
+from database import init_db, add_reservation, get_reservations, update_status
+init_db()
+
 # Local imports
-from data_store import load_reservations, save_reservation, update_reservation_status
 from chatbase_bridge import router as chatbase_router  # ✅ Chatbase integration
 
 # --- Load environment variables ---
@@ -63,7 +66,7 @@ def book(request: BookingRequest):
         "status": "confirmed",
     }
 
-    save_reservation(reservation)
+    add_reservation(reservation)
     return {"success": True, "message": "Reservation saved successfully.", **reservation}
 
 
@@ -76,7 +79,7 @@ def cancel_reservation(data: dict):
     if not reservation_id:
         return {"success": False, "error": "Missing reservation_id"}
 
-    success = update_reservation_status(reservation_id, "cancelled")
+    success = update_status(reservation_id, "cancelled")
     if success:
         print(f"✅ Reservation {reservation_id} was cancelled.")
         return {"success": True, "message": f"Reservation {reservation_id} cancelled successfully."}
@@ -95,25 +98,31 @@ def update_reservation(data: dict):
     if not reservation_id:
         return {"success": False, "error": "Missing reservation_id"}
 
-    reservations = load_reservations()
-    updated = False
+    import sqlite3
+    conn = sqlite3.connect("reservations.db")
+    cur = conn.cursor()
 
-    for r in reservations:
-        if r["reservation_id"] == reservation_id:
-            if new_datetime:
-                r["datetime"] = new_datetime
-            if new_party_size:
-                r["party_size"] = new_party_size
-            r["status"] = "updated"
-            updated = True
-            break
+    # Update fields if provided
+    fields = []
+    values = []
+    if new_datetime:
+        fields.append("datetime = ?")
+        values.append(new_datetime)
+    if new_party_size:
+        fields.append("party_size = ?")
+        values.append(new_party_size)
+    if fields:
+        fields.append("status = ?")
+        values.append("updated")
+        values.append(reservation_id)
+        cur.execute(f"UPDATE reservations SET {', '.join(fields)} WHERE reservation_id = ?", tuple(values))
+        conn.commit()
+
+    updated = cur.rowcount > 0
+    conn.close()
 
     if updated:
-        import json
-        with open("reservations.json", "w") as f:
-            json.dump(reservations, f, indent=2)
         return {"success": True, "message": f"Reservation {reservation_id} updated successfully."}
-
     return {"success": False, "error": "Reservation not found"}
 
 
@@ -141,7 +150,7 @@ def process_message(data: dict):
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request):
     """Render the reservations dashboard."""
-    reservations = load_reservations()
+    reservations = get_reservations()
     return templates.TemplateResponse(
         "dashboard.html",
         {"request": request, "reservations": reservations}
@@ -152,7 +161,8 @@ app.include_router(chatbase_router)
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    reservations = load_reservations()
+    """Redirect the root URL to the dashboard page."""
+    reservations = get_reservations()
     return templates.TemplateResponse(
         "dashboard.html",
         {"request": request, "reservations": reservations}
@@ -160,4 +170,5 @@ async def home(request: Request):
 
 @app.get("/ping")
 def ping():
+    """Health check route to confirm backend is running."""
     return {"status": "✅ Online", "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
