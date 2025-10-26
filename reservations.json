@@ -1,0 +1,74 @@
+[
+  {
+    "reservation_id": "RES-134952",
+    "datetime": "2025-10-26T19:00",
+    "business": "bistro123",
+    "party_size": 2,
+    "customer_name": "Camilo",
+    "customer_email": "camilo@example.com",
+    "status": "cancelled"
+  },
+  {
+    "reservation_id": "RES-144253",
+    "datetime": "2025-10-16T19:00",
+    "business": "AI_RESTO",
+    "party_size": 4,
+    "customer_name": "Camilo",
+    "customer_email": "camilo@test.com",
+    "status": "updated"
+  },
+  {
+    "reservation_id": "RES-144255",
+    "datetime": "2025-11-13T23:00",
+    "business": "AI_RESTO",
+    "party_size": 7,
+    "customer_name": "Camilo",
+    "customer_email": "camilo@test.com",
+    "status": "updated"
+  },
+  {
+    "reservation_id": "RES-144309",
+    "datetime": "2025-10-30T19:00",
+    "business": "AI_RESTO",
+    "party_size": 3,
+    "customer_name": "Camilo",
+    "customer_email": "camilo@test.com",
+    "status": "confirmed"
+  },
+  {
+    "reservation_id": "RES-144323",
+    "datetime": "2025-10-30T19:00",
+    "business": "AI_RESTO",
+    "party_size": 3,
+    "customer_name": "Camilo",
+    "customer_email": "camilo@test.com",
+    "status": "confirmed"
+  },
+  {
+    "reservation_id": "RES-193859",
+    "datetime": "2025-10-25T19:38",
+    "business": "LaCasaItaliana",
+    "party_size": 2,
+    "customer_name": "Guest",
+    "customer_email": "guest@example.com",
+    "status": "confirmed"
+  },
+  {
+    "reservation_id": "RES-194206",
+    "datetime": "2025-10-25T03:00:00",
+    "business": "LaCasaItaliana",
+    "party_size": 3,
+    "customer_name": "Sofia",
+    "customer_email": "sofia@example.com",
+    "status": "confirmed"
+  },
+  {
+    "reservation_id": "RES-195127",
+    "datetime": "2025-10-25T02:00:00",
+    "business": "LaCasaItaliana",
+    "party_size": 2,
+    "customer_name": "Guest",
+    "customer_email": "guest@example.com",
+    "status": "confirmed"
+  }
+]

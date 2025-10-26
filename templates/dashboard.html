@@ -1,0 +1,442 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="container">
+  <h2>Reservations</h2>
+
+  <div class="filters">
+    <input
+      type="text"
+      id="searchInput"
+      placeholder="Search by customer name or email..."
+      onkeyup="filterTable()"
+    />
+    <select id="statusFilter" onchange="filterTable()">
+      <option value="">All Statuses</option>
+      <option value="confirmed">Confirmed</option>
+      <option value="pending">Pending</option>
+      <option value="cancelled">Cancelled</option>
+      <option value="updated">Updated</option>
+    </select>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Customer</th>
+        <th>Date</th>
+        <th>Time</th>
+        <th>Party Size</th>
+        <th>Status</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody id="reservationTable">
+      {% for r in reservations|sort(attribute="datetime", reverse=True) %}
+      <tr>
+        <td>{{ r.customer_name }}</td>
+        <td>{{ r.datetime.split('T')[0] if 'T' in r.datetime else r.datetime }}</td>
+        <td>{{ r.datetime.split('T')[1] if 'T' in r.datetime else '-' }}</td>
+        <td>{{ r.party_size }}</td>
+        <td>{{ r.status }}</td>
+        <td>
+          {% if r.status != "cancelled" %}
+          <button class="cancel-btn" onclick="cancelReservation('{{ r.reservation_id }}')">Cancel</button>
+          <button class="edit-btn" onclick="openEditForm('{{ r.reservation_id }}', '{{ r.datetime }}', '{{ r.party_size }}')">Edit</button>
+          {% else %}
+          <span class="cancelled-text">Cancelled</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<!-- 💬 Floating Chat Button -->
+<button id="chatToggleBtn" onclick="toggleChat()">💬</button>
+
+<!-- 💭 Chat Widget -->
+<div id="chatWidget" class="chat-widget">
+  <div class="chat-header">
+    <h3>AI Assistant</h3>
+    <button class="close-btn" onclick="toggleChat()">×</button>
+  </div>
+
+  <div id="chatMessages" class="chat-messages"></div>
+
+  <div class="chat-input">
+    <input type="text" id="userMessage" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendMessage()" />
+    <button onclick="sendMessage()">Send</button>
+  </div>
+</div>
+
+<!-- ✏️ Edit Popup -->
+<div id="editForm" class="modal">
+  <div class="modal-content">
+    <h3>Edit Reservation</h3>
+    <label>Date/Time:</label>
+    <input type="datetime-local" id="editDatetime" />
+    <label>Party Size:</label>
+    <input type="number" id="editPartySize" min="1" />
+    <div class="modal-actions">
+      <button onclick="saveEdit()">Save</button>
+      <button onclick="closeEditForm()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- 🧠 Chat History Panel -->
+<div style="margin-top: 50px; padding: 20px; border-top: 2px solid #444;">
+  <h2>💬 Chat History</h2>
+  <div id="chat-history" style="max-height: 300px; overflow-y: auto; background: #181818; padding: 10px; border-radius: 10px;">
+    <pre id="chat-log" style="white-space: pre-wrap; font-family: monospace; color: #ccc;"></pre>
+  </div>
+  <div style="margin-top:10px; display:flex; gap:10px;">
+    <button onclick="refreshChatHistory()" style="padding:8px 16px;border:none;background:#00bcd4;color:white;border-radius:5px;cursor:pointer;">🔄 Refresh Chat</button>
+    <button onclick="clearChatHistory()" style="padding:8px 16px;border:none;background:#e53935;color:white;border-radius:5px;cursor:pointer;">🧹 Clear Chat</button>
+  </div>
+</div>
+
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background-color: #111;
+    color: #eee;
+  }
+
+  h2 {
+    color: #00bcd4;
+    text-align: center;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: #1e1e1e;
+    color: #ddd;
+  }
+
+  th, td {
+    padding: 10px;
+    text-align: center;
+  }
+
+  th {
+    background-color: #2a2a2a;
+  }
+
+  tr:nth-child(even) {
+    background-color: #181818;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  .edit-btn {
+    background-color: #007bff;
+    border: none;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 4px;
+  }
+
+  .edit-btn:hover {
+    background-color: #0056b3;
+  }
+
+  .cancel-btn {
+    background-color: #e53935;
+    border: none;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 4px;
+  }
+
+  .cancel-btn:hover {
+    background-color: #b71c1c;
+  }
+
+  /* 💬 Floating Chat Button */
+  #chatToggleBtn {
+    position: fixed;
+    bottom: 20px;
+    right: 25px;
+    background: #00bcd4;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    font-size: 28px;
+    box-shadow: 0 0 10px #00bcd4;
+    cursor: pointer;
+    transition: 0.3s;
+    z-index: 1000;
+  }
+
+  #chatToggleBtn:hover {
+    background: #0097a7;
+  }
+
+  .chat-widget {
+    position: fixed;
+    bottom: 100px;
+    right: 25px;
+    width: 350px;
+    background-color: #1e1e1e;
+    border: 1px solid #333;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    overflow: hidden;
+    flex-direction: column;
+    z-index: 1000;
+    pointer-events: none;
+    display: none;
+    opacity: 0;
+    transform: translateY(30px);
+    transition: all 0.3s ease;
+  }
+
+  .chat-widget.active {
+    display: flex;
+    pointer-events: auto;
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .chat-header {
+    background-color: #00bcd4;
+    padding: 10px;
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .close-btn {
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 18px;
+    cursor: pointer;
+  }
+
+  .chat-messages {
+    height: 300px;
+    overflow-y: auto;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .chat-message {
+    margin-bottom: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    max-width: 80%;
+    font-size: 14px;
+  }
+
+  .user-message {
+    align-self: flex-end;
+    background-color: #00bcd4;
+    color: white;
+  }
+
+  .bot-message {
+    align-self: flex-start;
+    background-color: #333;
+    color: #fff;
+  }
+
+  .chat-input {
+    display: flex;
+    border-top: 1px solid #333;
+  }
+
+  .chat-input input {
+    flex: 1;
+    background: #121212;
+    border: none;
+    color: white;
+    padding: 10px;
+  }
+
+  .chat-input button {
+    background-color: #00bcd4;
+    border: none;
+    padding: 10px 15px;
+    color: white;
+    cursor: pointer;
+  }
+
+  .chat-input button:hover {
+    background-color: #0097a7;
+  }
+
+  .modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+  }
+
+  .modal-content {
+    background-color: #1f1f1f;
+    margin: 15% auto;
+    padding: 20px;
+    border-radius: 10px;
+    width: 300px;
+    text-align: center;
+    color: white;
+  }
+</style>
+
+<script>
+  // 🟣 Chat toggle
+  function toggleChat() {
+    const chat = document.getElementById("chatWidget");
+    chat.classList.toggle("active");
+  }
+
+  // 🟢 Send message
+  async function sendMessage() {
+    const input = document.getElementById("userMessage");
+    const message = input.value.trim();
+    if (!message) return;
+
+    appendMessage(message, "user");
+    input.value = "";
+
+    const res = await fetch("/chatbase_bridge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message }),
+    });
+
+    const data = await res.json();
+    if (data.details || data.error) {
+      appendMessage("⚠️ Error connecting to Chatbase.", "bot");
+    } else {
+      appendMessage(data.reply || "No response.", "bot");
+    }
+  }
+
+  function appendMessage(text, sender) {
+    const chat = document.getElementById("chatMessages");
+    const msg = document.createElement("div");
+    msg.classList.add("chat-message", sender === "user" ? "user-message" : "bot-message");
+    msg.textContent = text;
+    chat.appendChild(msg);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  // 📅 Edit popup logic
+  let editReservationId = null;
+
+  function openEditForm(id, datetime, partySize) {
+    editReservationId = id;
+    document.getElementById("editDatetime").value = datetime.replace(" ", "T");
+    document.getElementById("editPartySize").value = partySize;
+    document.getElementById("editForm").style.display = "block";
+  }
+
+  function closeEditForm() {
+    document.getElementById("editForm").style.display = "none";
+  }
+
+  async function saveEdit() {
+    const newDatetime = document.getElementById("editDatetime").value;
+    const newPartySize = parseInt(document.getElementById("editPartySize").value);
+
+    const response = await fetch("/updateReservation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        reservation_id: editReservationId,
+        datetime: newDatetime,
+        party_size: newPartySize,
+      }),
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      alert(data.message);
+      closeEditForm();
+      location.reload();
+    } else {
+      alert("Error: " + data.error);
+    }
+  }
+
+  function filterTable() {
+    const input = document.getElementById("searchInput").value.toLowerCase();
+    const status = document.getElementById("statusFilter").value.toLowerCase();
+    const rows = document.querySelectorAll("#reservationTable tr");
+
+    rows.forEach((row) => {
+      const name = row.cells[0].textContent.toLowerCase();
+      const stat = row.cells[4].textContent.toLowerCase();
+      const matchesText = name.includes(input);
+      const matchesStatus = !status || stat === status;
+      row.style.display = matchesText && matchesStatus ? "" : "none";
+    });
+  }
+
+  async function cancelReservation(id) {
+    if (!confirm("Are you sure you want to cancel this reservation?")) return;
+
+    const response = await fetch("/cancelReservation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reservation_id: id }),
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      alert(data.message);
+      location.reload();
+    } else {
+      alert("Error: " + data.error);
+    }
+  }
+
+  // 🧠 Chat history
+  async function refreshChatHistory() {
+    const res = await fetch("/static/chat_memory.json");
+    if (!res.ok) {
+      document.getElementById("chat-log").textContent = "No chat history yet.";
+      return;
+    }
+    const data = await res.json();
+    let text = "";
+    data.forEach(msg => {
+      const role = msg.role === "user" ? "🧍 User:" : "🤖 AI:";
+      text += `${role} ${msg.content}\n\n`;
+    });
+    document.getElementById("chat-log").textContent = text;
+  }
+
+  async function clearChatHistory() {
+    const res = await fetch("/chatbase_bridge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "start over" }),
+    });
+    await res.json();
+    document.getElementById("chat-log").textContent = "🧹 Chat memory cleared!";
+  }
+
+// 🕒 Auto-refresh chat every 10 seconds
+refreshChatHistory();
+setInterval(refreshChatHistory, 10000);
+
+</script>
+
+{% endblock %}
