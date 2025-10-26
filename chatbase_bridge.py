@@ -36,10 +36,10 @@ def _headers() -> dict:
 def _build_payload(agent_id: str, message: str, session_id: str | None, user_id: str | None) -> dict:
     payload = {
         "agent_id": agent_id,
-        "input": message,
+        "messages": [{"role": "user", "content": message}],
     }
     if session_id:
-        payload["conversation_id"] = session_id
+        payload["session_id"] = session_id
     if user_id:
         payload["user_id"] = user_id
     return payload
@@ -66,9 +66,9 @@ async def chatbase_bridge(data: ChatbaseIn):
             raise HTTPException(status_code=res.status_code, detail=res.text)
 
         raw_response = res.json()
-        reply = raw_response.get("response", "⚠️ No response from Chatbase.")
+        reply = raw_response.get("reply") or raw_response.get("response") or "⚠️ No response from Chatbase."
 
-        # --- 🔥 Try to detect reservation intent ---
+        # --- 🔥 Detect reservation intent ---
         try:
             parsed = json.loads(reply)
             if isinstance(parsed, dict) and parsed.get("intent") == "book_reservation":
@@ -85,7 +85,7 @@ async def chatbase_bridge(data: ChatbaseIn):
                 add_reservation(reservation)
                 reply = f"✅ Reservation created for {reservation['customer_name']} on {reservation['datetime']} for {reservation['party_size']} people."
         except Exception:
-            pass  # Normal text replies continue as usual
+            pass
 
         return ChatbaseOut(reply=reply, raw=raw_response)
 
