@@ -33,13 +33,13 @@ def _headers() -> dict:
         "Content-Type": "application/json",
     }
 
-def _build_payload_openai_style(agent_id: str, message: str, session_id: str | None, user_id: str | None) -> dict:
+def _build_payload(agent_id: str, message: str, session_id: str | None, user_id: str | None) -> dict:
     payload = {
-        "messages": [{"role": "user", "content": message}],
         "agent_id": agent_id,
+        "input": message,
     }
     if session_id:
-        payload["session_id"] = session_id
+        payload["conversation_id"] = session_id
     if user_id:
         payload["user_id"] = user_id
     return payload
@@ -51,7 +51,7 @@ async def chatbase_bridge(data: ChatbaseIn):
         CHATBASE_API_KEY = _get_env("CHATBASE_API_KEY")
         CHATBASE_AGENT_ID = _get_env("CHATBASE_AGENT_ID")
 
-        payload = _build_payload_openai_style(
+        payload = _build_payload(
             CHATBASE_AGENT_ID, data.message, data.session_id, data.user_id
         )
 
@@ -62,24 +62,24 @@ async def chatbase_bridge(data: ChatbaseIn):
                 json=payload,
             )
 
-        res.raise_for_status()
-        raw_response = res.json()
+        if res.status_code != 200:
+            raise HTTPException(status_code=res.status_code, detail=res.text)
 
-        # ✅ Ensure reply field is always available
-        reply = raw_response.get("reply") or raw_response.get("message") or "⚠️ No response from Chatbase."
+        raw_response = res.json()
+        reply = raw_response.get("response", "⚠️ No response from Chatbase.")
 
         # --- 🔥 Try to detect reservation intent ---
         try:
             parsed = json.loads(reply)
             if isinstance(parsed, dict) and parsed.get("intent") == "book_reservation":
-                data = parsed.get("data", {})
+                d = parsed.get("data", {})
                 reservation = {
                     "reservation_id": "RES-" + datetime.now().strftime("%H%M%S"),
-                    "datetime": data.get("datetime", datetime.now().strftime("%Y-%m-%dT%H:%M")),
-                    "business": data.get("business_id", "DefaultBiz"),
-                    "party_size": int(data.get("party_size", 2)),
-                    "customer_name": data.get("name", "Guest"),
-                    "customer_email": data.get("email", "guest@example.com"),
+                    "datetime": d.get("datetime", datetime.now().strftime("%Y-%m-%dT%H:%M")),
+                    "business": d.get("business_id", "DefaultBiz"),
+                    "party_size": int(d.get("party_size", 2)),
+                    "customer_name": d.get("name", "Guest"),
+                    "customer_email": d.get("email", "guest@example.com"),
                     "status": "confirmed",
                 }
                 add_reservation(reservation)
