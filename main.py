@@ -149,3 +149,15 @@ async def dashboard(request: Request):
 
 # ✅ Include Chatbase bridge routes
 app.include_router(chatbase_router)
+
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    reservations = load_reservations()
+    return templates.TemplateResponse(
+        "dashboard.html",
+        {"request": request, "reservations": reservations}
+    )
+
+@app.get("/ping")
+def ping():
+    return {"status": "✅ Online", "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
