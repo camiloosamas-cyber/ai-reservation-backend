@@ -224,7 +224,18 @@ async def reset_reservations():
     conn.commit()
     conn.close()
     return {"message": "✅ all reservations cleared"}
+    
+@app.post("/whatsapp")
+async def whatsapp_webhook(Body: str = Form(...)):
+    # Chatbase won't be used here — your backend responds directly
 
+    print("Incoming WhatsApp:", Body)
+
+    # Temporary reply so we confirm connection works
+    return {
+        "message": "WhatsApp message received",
+        "received": Body
+    }
 # ---------------- Real-time WebSocket ----------------
 clients = []
 
